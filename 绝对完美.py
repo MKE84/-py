@@ -1,4 +1,4 @@
-
+    # ---------------- 第一部分：基础依赖导入（去重后） --------------------
 import os
 import logging
 import concurrent.futures
@@ -8,7 +8,6 @@ import requests
 import yaml
 import time
 import datetime  
-import logging
 from typing import Optional
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import (
@@ -28,17 +27,16 @@ from urllib3.exceptions import InsecureRequestWarning
 import warnings
 
 
+# ---------------- 第二部分：Vercel适配-Web服务相关（单独拆分） --------------------
+from fastapi import FastAPI
+import uvicorn
+import threading
 
-# ---------------- 导入所有依赖模块 --------------------
-import warnings
-import requests
-from requests.adapters import HTTPAdapter
-from urllib3.util.retry import Retry
-import re
-import base64
-from urllib.parse import unquote
-import yaml
-import logging
+
+# ---------------- 环境变量加载 --------------------
+API_ID = os.getenv("API_ID")
+API_HASH = os.getenv("API_HASH")
+BOT_TOKEN = os.getenv("BOT_TOKEN")
 
 BOT_TOKEN = "8276665475:AAEH7ZF8GjijB1FLDuZOyBsX-2vtaV05Vig"  # 去@BotFather获取
 AUTHORIZED_USER_IDS = {None}  # 去@userinfobot获取自己的ID
@@ -1024,8 +1022,24 @@ async def handle_subscription(update: Update, context: ContextTypes.DEFAULT_TYPE
 
 
 
-# ---------------- 主函数 --------------------
-def main() -> None:
+# ---------------- 原有机器人核心逻辑（未改动） --------------------
+# 这里放入你已有的start、handle_subscription、handle_callback等函数定义
+# 示例（需替换为你实际的函数代码）：
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    await update.message.reply_text("欢迎使用订阅解析机器人！请发送订阅链接~")
+
+async def handle_subscription(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    # 你的订阅解析逻辑
+    await update.message.reply_text("正在解析订阅链接...")
+
+async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    # 你的回调处理逻辑
+    query = update.callback_query
+    await query.answer()
+
+
+# ---------------- 机器人启动封装 --------------------
+def run_bot():
     defaults = Defaults(parse_mode="HTML")
     application = ApplicationBuilder().token(BOT_TOKEN).defaults(defaults).build()
 
@@ -1038,5 +1052,37 @@ def main() -> None:
     application.run_polling()
 
 
+# ---------------- Web服务启动逻辑 --------------------
+app = FastAPI()
+
+@app.get("/")
+async def root():
+    """Vercel检测用的Web入口"""
+    return {"message": "TG订阅解析机器人已启动", "status": "running"}
+
+def run_web():
+    port = int(os.getenv("PORT", 3000))
+    uvicorn.run(app, host="0.0.0.0", port=port)
+
+
+# ---------------- 主函数 --------------------
 if __name__ == "__main__":
-    main()
+    # 分别启动机器人线程和Web服务
+    bot_thread = threading.Thread(target=run_bot, daemon=True)
+    web_thread = threading.Thread(target=run_web)
+    
+    bot_thread.start()
+    web_thread.start()
+    
+    # 等待Web服务线程结束（Vercel需保持Web进程运行）
+    web_thread.join()
+    
+    
+    
+    
+    
+    
+    
+
+
+
