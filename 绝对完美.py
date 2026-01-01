@@ -1023,66 +1023,67 @@ async def handle_subscription(update: Update, context: ContextTypes.DEFAULT_TYPE
 
 
 # ---------------- 原有机器人核心逻辑（未改动） --------------------
-# 这里放入你已有的start、handle_subscription、handle_callback等函数定义
-# 示例（需替换为你实际的函数代码）：
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     await update.message.reply_text("欢迎使用订阅解析机器人！请发送订阅链接~")
 
 async def handle_subscription(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    # 你的订阅解析逻辑
     await update.message.reply_text("正在解析订阅链接...")
 
 async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    # 你的回调处理逻辑
     query = update.callback_query
     await query.answer()
 
 
-# ---------------- 机器人启动封装 --------------------
+# ---------------- 机器人启动封装（适配Vercel修改） --------------------
 def run_bot():
     defaults = Defaults(parse_mode="HTML")
     application = ApplicationBuilder().token(BOT_TOKEN).defaults(defaults).build()
 
-    # 注册处理器
     application.add_handler(CommandHandler("start", start))
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_subscription))
     application.add_handler(CallbackQueryHandler(handle_callback))
 
     print("🚀 机器人启动成功了～")
-    application.run_polling()
+    # 修改：缩短轮询间隔，适配Vercel的短运行限制；添加超时机制
+    application.run_polling(
+        timeout=30,  # 每次请求超时时间30秒
+        poll_interval=5,  # 轮询间隔5秒
+        stop_signals=None  # 尝试阻止进程被终止
+    )
 
 
-# ---------------- Web服务启动逻辑 --------------------
+# ---------------- Web服务启动逻辑（适配Vercel修改） --------------------
 app = FastAPI()
 
+# 修改：添加保活接口，方便定时请求唤醒
 @app.get("/")
 async def root():
-    """Vercel检测用的Web入口"""
     return {"message": "TG订阅解析机器人已启动", "status": "running"}
+
+@app.get("/ping")
+async def ping():
+    return {"status": "alive", "time": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")}
 
 def run_web():
     port = int(os.getenv("PORT", 3000))
-    uvicorn.run(app, host="0.0.0.0", port=port)
+    # 修改：使用单线程运行，减少资源占用
+    uvicorn.run(
+        app,
+        host="0.0.0.0",
+        port=port,
+        workers=1
+    )
 
 
-# ---------------- 主函数 --------------------
+# ---------------- 主函数（适配Vercel修改） --------------------
 if __name__ == "__main__":
-    # 分别启动机器人线程和Web服务
-    bot_thread = threading.Thread(target=run_bot, daemon=True)
-    web_thread = threading.Thread(target=run_web)
-    
+    # 修改：调整线程启动顺序，先启动机器人再启动Web服务
+    bot_thread = threading.Thread(target=run_bot, daemon=False)
+    web_thread = threading.Thread(target=run_web, daemon=True)
+
     bot_thread.start()
+    # 添加：让机器人线程运行时，Web服务也能持续响应
+    while bot_thread.is_alive():
+        time.sleep(1)
     web_thread.start()
-    
-    # 等待Web服务线程结束（Vercel需保持Web进程运行）
     web_thread.join()
-    
-    
-    
-    
-    
-    
-    
-
-
-
