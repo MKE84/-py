@@ -1,0 +1,14 @@
+{
+  "builds": [
+    {
+      "src": "绝对完美.py",
+      "use": "@vercel/python"
+    }
+  ],
+  "routes": [
+    {
+      "src": "/(.*)",
+      "dest": "绝对完美.py"
+    }
+  ]
+}
