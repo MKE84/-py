@@ -1,4 +1,4 @@
-    # ---------------- 第一部分：基础依赖导入（去重后） --------------------
+# ---------------- 第一部分：基础依赖导入（去重后） --------------------
 import os
 import logging
 import concurrent.futures
@@ -33,14 +33,19 @@ import uvicorn
 import threading
 
 
-# ---------------- 环境变量加载 --------------------
+# ---------------- 第三部分：本地配置（硬编码，单独拆分） --------------------
+# 以下为本地固定配置，可直接修改
+LOCAL_BOT_TOKEN = "8276665475:AAEH7ZF8GjijB1FLDuZOyBsX-2vtaV05Vig"  # 去@BotFather获取
+AUTHORIZED_USER_IDS = {None}  # 去@userinfobot获取自己的ID，格式如{123456789}
+NODES_PER_PAGE = 100  # 每页显示节点数量
+
+
+# ---------------- 第四部分：环境变量加载（单独拆分，优先级更高） --------------------
+# 优先从Vercel环境变量读取，若未配置则使用本地固定值
 API_ID = os.getenv("API_ID")
 API_HASH = os.getenv("API_HASH")
-BOT_TOKEN = os.getenv("BOT_TOKEN")
+BOT_TOKEN = os.getenv("BOT_TOKEN", LOCAL_BOT_TOKEN)  # 环境变量优先，否则用本地值
 
-BOT_TOKEN = "8276665475:AAEH7ZF8GjijB1FLDuZOyBsX-2vtaV05Vig"  # 去@BotFather获取
-AUTHORIZED_USER_IDS = {None}  # 去@userinfobot获取自己的ID
-NODES_PER_PAGE = 100  # 每页显示节点数量
 # ---------------- 初始化日志 --------------------
 
 logger = logging.getLogger(__name__)
