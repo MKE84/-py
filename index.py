@@ -1012,23 +1012,26 @@ async def handle_subscription(update: Update, context: ContextTypes.DEFAULT_TYPE
 
 
 
-
 # --- 核心 Webhook 逻辑 ---
 app = Flask(__name__)
 defaults = Defaults(parse_mode="HTML")
-application = ApplicationBuilder().token(BOT_TOKEN).defaults(defaults).build()
+# 改为单例模式，避免重复创建应用实例
+_bot_application = None
 
-async def setup_application():
-    """注册处理器"""
-    if not application.handlers:
-        application.add_handler(CommandHandler("start", start))
-        application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_subscription))
-        application.add_handler(CallbackQueryHandler(handle_callback))
+def get_bot_application():
+    global _bot_application
+    if _bot_application is None:
+        _bot_application = ApplicationBuilder().token(BOT_TOKEN).defaults(defaults).build()
+        # 直接注册处理器，无需额外判断
+        _bot_application.add_handler(CommandHandler("start", start))
+        _bot_application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_subscription))
+        _bot_application.add_handler(CallbackQueryHandler(handle_callback))
+    return _bot_application
 
 async def process_update(data):
     """异步处理来自 Telegram 的更新"""
+    application = get_bot_application()
     async with application:
-        await setup_application()
         update = Update.de_json(data, application.bot)
         await application.process_update(update)
 
@@ -1037,8 +1040,14 @@ def webhook():
     if request.method == "POST":
         try:
             data = request.get_json(force=True)
-            # 关键：Vercel 环境必须手动调用 asyncio.run
-            asyncio.run(process_update(data))
+            # 解决事件循环重复调用问题
+            try:
+                loop = asyncio.get_running_loop()
+            except RuntimeError:
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+            # 改用loop.run_until_complete，避免asyncio.run重复调用冲突
+            loop.run_until_complete(process_update(data))
             return 'OK', 200
         except Exception as e:
             logger.error(f"Webhook Error: {str(e)}")
